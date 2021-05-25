@@ -1,0 +1,374 @@
+
+	include "nesdefs.dasm"
+
+;;;;; VARIABLES
+
+EOS	= #$00
+EOF	= #$01
+LF	= #$02
+
+spc	= #$08
+dot	= #$09
+com	= #$0A
+
+hamze	= #$0F
+b	= #$20
+j	= #$22
+s	= #$24
+f	= #$26
+p	= #$28
+c	= #$2A
+sh	= #$2C
+q	= #$2E
+t	= #$30
+he	= #$32
+sad	= #$34
+k	= #$36
+se	= #$38
+xe	= #$3A
+zad	= #$3C
+g	= #$3E
+l	= #$58
+m	= #$5A
+n	= #$5C
+
+v	= #$40
+r	= #$41
+z	= #$42
+zh	= #$43
+
+ta	= #$50
+za	= #$51
+
+A	= #$60
+a	= #$61
+d	= #$62
+zal	= #$63
+
+ain	= #$78
+qain	= #$7A
+h	= #$7C
+y	= #$7E
+
+i	= #$7E
+o	= #$40
+u	= #$40
+e	= #$7C
+
+
+FLPT	= $01
+FLPTH	= $02
+FREEPT	= $03
+FREEPTH	= $04
+DIR	= $05
+NAMEIN	= $06
+
+
+HOR	= $28
+VER	= $29
+
+MASK	= $36
+CHAR	= $37
+LAST	= $38
+CUR	= $39
+RNDR	= $40
+
+BUFFPT	= $e0
+BUFFPTH	= $e1
+BUFF	= $300
+
+	seg.u ZEROPAGE
+	org $0
+	NES_HEADER 0,2,1,0
+;;;;; START OF CODE
+Start:
+; wait for PPU warmup; clear CPU RAM
+	NES_INIT	; set up stack pointer, turn off PPU
+        jsr WaitSync	; wait for VSYNC
+        jsr ClearRAM	; clear RAM
+        jsr WaitSync	; wait for VSYNC (and PPU warmup)
+; set palette and nametable VRAM
+
+	jsr SetPalette	; set palette colors
+	lda #%01111000
+        sta MASK
+	lda #$00
+        sta $E0
+        lda #$03
+        sta $E1
+
+
+	lda #spc
+	ldx #$20
+.loop	sta RNDR,x
+	dex
+	bne .loop
+	lda #0
+        sta RNDR
+
+
+        lda #0
+ 	sta PPU_SCROLL
+        sta PPU_SCROLL
+        
+
+			; ram 6000-602F file table
+                        ; ram 6030-7FFF file space
+	lda #$00	; empty memory starts after file table
+        sta $03
+        lda #$03
+        sta $04
+
+	lda #r
+        sta $6
+        lda #i
+        sta $7
+        lda #sh
+        sta $8
+        lda #e
+        sta $9
+        jsr mkdir
+	      
+        lda #m
+        sta $6
+        lda #m
+        sta $7
+        lda #d
+        sta $8
+        lda #spc
+        sta $9
+        lda #sad
+        sta $A
+        lda #d
+        sta $B
+        lda #r
+        sta $C
+        lda #a
+        sta $D
+	jsr mkfile
+
+	jsr listfiles
+
+
+
+
+
+        PPU_SETADDR $201F
+	ldy #0
+	ldx #0
+RenderText:			; shows what's in buffer
+	lda (BUFFPT),y
+        beq RenderDone
+        bit MASK
+        bne .nspec
+        
+        ;special characters:
+        cmp #LF
+        bne .nlf
+       	jmp FinishBuffer        
+.nlf
+
+.nspec	
+
+RenderChar:
+	sta CUR
+        sta RNDR,x
+        asl CUR ;ready to check the flags              
+        asl CUR
+        bcs .rc_one
+        asl CUR
+        bcs .rc_j1
+        jmp .rc_end ; if it's 00 just print        
+.rc_j1	lda #%01100000 ;fix first then just do it like 1011
+	sta CUR
+.rc_one	asl LAST
+	bcs .rc_j2
+        asl CUR
+        jmp .rc_end
+.rc_j2  asl CUR
+        bcc .rc_j3
+        lda RNDR,x
+        eor #%00001000
+        sta RNDR,x
+.rc_j3	asl LAST
+	bcc .rc_end
+        dex
+        inc RNDR,x
+        inx     
+.rc_end lda CUR
+        sta LAST
+
+	inx
+        cpx #30
+        bne .nfb
+FinishBuffer:
+        lda #spc
+        inx
+.fb_l	sta RNDR,x
+        inx
+        cpx #32
+        bne .fb_l
+
+PrintBuffer
+        dex
+.pb_l   lda RNDR,x
+        sta PPU_DATA
+        lda #spc
+        sta RNDR,x
+        dex
+        bpl .pb_l
+        inx
+	
+.nfb	iny
+	bne .nnextpage
+        inc $E1
+.nnextpage        
+	jmp RenderText
+RenderDone        
+	
+
+
+        lda #%00011110
+        sta PPU_MASK
+        
+        
+	lda #00
+        sta PPU_ADDR
+        sta PPU_ADDR
+
+        
+        lda #0
+        sta $31
+        sta $32
+        
+        lda #1
+        sta $33
+
+
+.endless
+	ldx #1
+        ldy #0
+        stx $4016
+        sty $4016
+        
+        stx $4016
+        sty $4016
+        
+        stx $4016
+        sty $4016
+        
+        stx $4016
+        sty $4016
+        
+        stx $4016
+        sty $4016
+        
+        stx $4016
+        sty $4016
+        
+        stx $4016
+        sty $4016
+        
+        stx $4016
+        sty $4016
+        
+
+
+	inc $32
+        bne .endless
+        inc $31
+        lda $31
+        cmp $33
+        bne .endless
+        
+        lda #0
+        sta $31
+        
+        lda #1
+        bit $4016
+        bit $4016
+        bit $4016
+        bit $4016
+        bit $4016
+	bne .up
+	bit $4016
+        beq .endless
+.down	lda $30
+	cmp #239
+        beq .endless
+	inc $30  
+        jmp .scroll
+        
+.up	lda $30
+	beq .endless
+	dec $30    
+      
+.scroll lda #0
+ 	sta PPU_SCROLL
+        lda $30
+ 	sta PPU_SCROLL
+        
+        
+	jmp .endless	; endless loop
+
+; set palette colors
+SetPalette: subroutine
+; set PPU address to palette start
+	PPU_SETADDR $3f00
+        ldy #0
+.loop:
+	lda Palette,y	; lookup byte in ROM
+	sta PPU_DATA	; store byte to PPU data
+        iny		; Y = Y + 1
+        cpy #32		; is Y equal to 32?
+	bne .loop	; not yet, loop
+        rts		; return to caller
+
+
+
+; ASCII message to display on screen
+
+        
+	
+
+;;;;; COMMON SUBROUTINES
+
+	include "nesppu.dasm"
+        include "sadi.asm"
+
+;;;;; INTERRUPT HANDLERS
+
+NMIHandler:
+	rti		; return from interrupt
+
+;;;;; CONSTANT DATA
+Palette:
+	hex 1f		;screen color
+	hex 01112101	;background 0
+        hex 02122201	;background 1
+        hex 02112101	;background 2
+        hex 01122200	;background 3
+        hex 19293900	;sprite 0
+        hex 1a2a3a00	;sprite 1
+        hex 1b2b3b00	;sprite 2
+        hex 1c2c3c	;sprite 3
+
+	org $a000     
+        .byte s,l,a,m,spc,k,i,a,spc,c,ta,o,r,i
+        .byte LF,EOS
+   
+
+
+;;;;; CPU VECTORS
+
+	org $fffa		; start at address $fffa
+        .word NMIHandler	; $fffa vblank nmi
+	.word Start		; $fffc reset
+	.word NMIHandler	; $fffe irq / brk
+	        
+
+;;;;; TILE SETS
+
+	org $10000        
+        incbin "letters.chr"
+        incbin "letters.chr"
